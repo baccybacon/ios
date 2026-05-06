@@ -153,6 +153,8 @@ private struct MessageBubble: View {
     }
 }
 
-#Preview {
-    AssistantChatView()
+struct AssistantChatView_Previews: PreviewProvider {
+    static var previews: some View {
+        AssistantChatView()
+    }
 }

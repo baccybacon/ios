@@ -4,11 +4,7 @@ import CoreGraphics
 @MainActor
 final class CanvasEditorViewModel: ObservableObject {
     @Published var design = AdDesign.starter
-    @Published var selectedElementID: UUID? {
-        didSet {
-            bringSelectedElementToFront()
-        }
-    }
+    @Published var selectedElementID: UUID?
 
     var selectedElement: CanvasElement? {
         guard let selectedElementID else { return nil }
@@ -163,6 +159,34 @@ final class CanvasEditorViewModel: ObservableObject {
         selectedElementID = selectedElement.id
     }
 
+    func moveSelectedElementForward() {
+        moveSelectedElementLayer(by: 1)
+    }
+
+    func moveSelectedElementBackward() {
+        moveSelectedElementLayer(by: -1)
+    }
+
+    func bringSelectedElementToFront() {
+        guard let selectedElementID,
+              let index = design.elements.firstIndex(where: { $0.id == selectedElementID }) else {
+            return
+        }
+
+        design.elements[index].zIndex = nextZIndex()
+        normalizeLayerOrder()
+    }
+
+    func sendSelectedElementToBack() {
+        guard let selectedElementID,
+              let index = design.elements.firstIndex(where: { $0.id == selectedElementID }) else {
+            return
+        }
+
+        design.elements[index].zIndex = (design.elements.map(\.zIndex).min() ?? 0) - 1
+        normalizeLayerOrder()
+    }
+
     func deleteSelectedElement() {
         guard let selectedElementID else { return }
         design.elements.removeAll { $0.id == selectedElementID }
@@ -191,16 +215,52 @@ final class CanvasEditorViewModel: ObservableObject {
         update(&design.elements[index])
     }
 
-    private func bringSelectedElementToFront() {
-        guard let selectedElementID else { return }
-        let zIndex = nextZIndex()
-        updateElement(id: selectedElementID) { element in
-            element.zIndex = zIndex
-        }
-    }
-
     private func nextZIndex() -> Int {
         (design.elements.map(\.zIndex).max() ?? 0) + 1
+    }
+
+    private func moveSelectedElementLayer(by offset: Int) {
+        guard let selectedElementID else { return }
+
+        let orderedIDs = design.elements
+            .sorted { lhs, rhs in
+                if lhs.zIndex == rhs.zIndex {
+                    return lhs.id.uuidString < rhs.id.uuidString
+                }
+                return lhs.zIndex < rhs.zIndex
+            }
+            .map(\.id)
+
+        guard let currentPosition = orderedIDs.firstIndex(of: selectedElementID) else { return }
+        let targetPosition = min(max(currentPosition + offset, 0), orderedIDs.count - 1)
+        guard targetPosition != currentPosition else { return }
+
+        let targetID = orderedIDs[targetPosition]
+        guard let selectedIndex = design.elements.firstIndex(where: { $0.id == selectedElementID }),
+              let targetIndex = design.elements.firstIndex(where: { $0.id == targetID }) else {
+            return
+        }
+
+        let selectedZIndex = design.elements[selectedIndex].zIndex
+        design.elements[selectedIndex].zIndex = design.elements[targetIndex].zIndex
+        design.elements[targetIndex].zIndex = selectedZIndex
+        normalizeLayerOrder()
+    }
+
+    private func normalizeLayerOrder() {
+        let orderedIDs = design.elements
+            .sorted { lhs, rhs in
+                if lhs.zIndex == rhs.zIndex {
+                    return lhs.id.uuidString < rhs.id.uuidString
+                }
+                return lhs.zIndex < rhs.zIndex
+            }
+            .map(\.id)
+
+        for (zIndex, id) in orderedIDs.enumerated() {
+            guard let index = design.elements.firstIndex(where: { $0.id == id }) else { continue }
+            design.elements[index].zIndex = zIndex
+        }
     }
 
     private static func minimumElementSize(for element: CanvasElement) -> CGSize {

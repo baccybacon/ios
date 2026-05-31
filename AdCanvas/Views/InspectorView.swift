@@ -60,6 +60,18 @@ struct InspectorView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
+                    ActionChip(title: "Back", systemImage: "arrow.down") {
+                        viewModel.moveSelectedElementBackward()
+                    }
+                    ActionChip(title: "Forward", systemImage: "arrow.up") {
+                        viewModel.moveSelectedElementForward()
+                    }
+                    ActionChip(title: "To back", systemImage: "arrow.down.to.line") {
+                        viewModel.sendSelectedElementToBack()
+                    }
+                    ActionChip(title: "To front", systemImage: "arrow.up.to.line") {
+                        viewModel.bringSelectedElementToFront()
+                    }
                     ActionChip(title: "Smaller", systemImage: "minus.magnifyingglass") {
                         viewModel.updateSelectedScale(0.9)
                     }

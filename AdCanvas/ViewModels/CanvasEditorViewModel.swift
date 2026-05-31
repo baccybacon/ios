@@ -60,19 +60,21 @@ final class CanvasEditorViewModel: ObservableObject {
     }
 
     func moveElement(id: UUID, by translation: CGSize) {
+        let canvasSize = design.canvasSize
         updateElement(id: id) { element in
             let nextX = element.position.x + translation.width
             let nextY = element.position.y + translation.height
-            element.position = clampedPosition(for: element, x: nextX, y: nextY)
+            element.position = Self.clampedPosition(for: element, canvasSize: canvasSize, x: nextX, y: nextY)
         }
     }
 
     func resizeElement(id: UUID, by translation: CGSize) {
+        let canvasSize = design.canvasSize
         updateElement(id: id) { element in
-            let minimumSize = minimumElementSize(for: element)
-            element.size.width = min(max(element.size.width + translation.width, minimumSize.width), design.canvasSize.width)
-            element.size.height = min(max(element.size.height + translation.height, minimumSize.height), design.canvasSize.height)
-            element.position = clampedPosition(for: element, x: element.position.x, y: element.position.y)
+            let minimumSize = Self.minimumElementSize(for: element)
+            element.size.width = min(max(element.size.width + translation.width, minimumSize.width), canvasSize.width)
+            element.size.height = min(max(element.size.height + translation.height, minimumSize.height), canvasSize.height)
+            element.position = Self.clampedPosition(for: element, canvasSize: canvasSize, x: element.position.x, y: element.position.y)
         }
     }
 
@@ -113,6 +115,7 @@ final class CanvasEditorViewModel: ObservableObject {
     }
 
     func updateSelectedMockupStyle(_ style: MockupStyle) {
+        let canvasSize = design.canvasSize
         updateSelectedElement { element in
             let template = CanvasElement.mockup(style, position: element.position)
             element.mockupStyle = style
@@ -122,7 +125,7 @@ final class CanvasEditorViewModel: ObservableObject {
             element.chartValues = template.chartValues
             element.cornerRadius = template.cornerRadius
             element.size = template.size
-            element.position = clampedPosition(for: element, x: element.position.x, y: element.position.y)
+            element.position = Self.clampedPosition(for: element, canvasSize: canvasSize, x: element.position.x, y: element.position.y)
         }
     }
 
@@ -130,7 +133,7 @@ final class CanvasEditorViewModel: ObservableObject {
         updateSelectedElement { element in
             guard element.chartValues.indices.contains(index) else { return }
             element.chartValues[index] = min(max(value, 0.05), 0.9)
-            normalizeChartValues(&element.chartValues)
+            Self.normalizeChartValues(&element.chartValues)
         }
     }
 
@@ -141,10 +144,11 @@ final class CanvasEditorViewModel: ObservableObject {
     }
 
     func updateSelectedScale(_ scale: Double) {
+        let canvasSize = design.canvasSize
         updateSelectedElement { element in
-            element.size.width = min(max(element.size.width * scale, 120), design.canvasSize.width)
-            element.size.height = min(max(element.size.height * scale, 64), design.canvasSize.height)
-            element.position = clampedPosition(for: element, x: element.position.x, y: element.position.y)
+            element.size.width = min(max(element.size.width * scale, 120), canvasSize.width)
+            element.size.height = min(max(element.size.height * scale, 64), canvasSize.height)
+            element.position = Self.clampedPosition(for: element, canvasSize: canvasSize, x: element.position.x, y: element.position.y)
         }
     }
 
@@ -154,7 +158,7 @@ final class CanvasEditorViewModel: ObservableObject {
         selectedElement.position.x += 36
         selectedElement.position.y += 36
         selectedElement.zIndex = nextZIndex()
-        selectedElement.position = clampedPosition(for: selectedElement, x: selectedElement.position.x, y: selectedElement.position.y)
+        selectedElement.position = Self.clampedPosition(for: selectedElement, canvasSize: design.canvasSize, x: selectedElement.position.x, y: selectedElement.position.y)
         design.elements.append(selectedElement)
         selectedElementID = selectedElement.id
     }
@@ -189,8 +193,9 @@ final class CanvasEditorViewModel: ObservableObject {
 
     private func bringSelectedElementToFront() {
         guard let selectedElementID else { return }
+        let zIndex = nextZIndex()
         updateElement(id: selectedElementID) { element in
-            element.zIndex = nextZIndex()
+            element.zIndex = zIndex
         }
     }
 
@@ -198,7 +203,7 @@ final class CanvasEditorViewModel: ObservableObject {
         (design.elements.map(\.zIndex).max() ?? 0) + 1
     }
 
-    private func minimumElementSize(for element: CanvasElement) -> CGSize {
+    private static func minimumElementSize(for element: CanvasElement) -> CGSize {
         switch element.kind {
         case .logoText:
             return CGSize(width: 140, height: 56)
@@ -219,17 +224,17 @@ final class CanvasEditorViewModel: ObservableObject {
         }
     }
 
-    private func normalizeChartValues(_ values: inout [Double]) {
+    private static func normalizeChartValues(_ values: inout [Double]) {
         let total = values.reduce(0, +)
         guard total > 0 else { return }
         values = values.map { $0 / total }
     }
 
-    private func clampedPosition(for element: CanvasElement, x: CGFloat, y: CGFloat) -> CGPoint {
+    private static func clampedPosition(for element: CanvasElement, canvasSize: CGSize, x: CGFloat, y: CGFloat) -> CGPoint {
         let minX = element.size.width / 2
-        let maxX = design.canvasSize.width - element.size.width / 2
+        let maxX = canvasSize.width - element.size.width / 2
         let minY = element.size.height / 2
-        let maxY = design.canvasSize.height - element.size.height / 2
+        let maxY = canvasSize.height - element.size.height / 2
 
         return CGPoint(
             x: min(max(x, minX), maxX),

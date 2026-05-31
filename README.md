@@ -5,9 +5,11 @@ Ad Canvas is a clean SwiftUI iOS app for creating ad creatives and dashboard sho
 ## Features
 
 - Clean portrait ad canvas sized for social ads
+- Custom canvas sizes from square ads to stories, banners, and freeform dimensions
 - Drag-and-drop style positioning for every element
 - Direct resize handle for selected elements
 - Move selected elements forward, backward, to front, or to back
+- Optional grid guides with snap-to-line alignment that keeps elements clean without locking them into boxes
 - Logo as editable text or imported image/GIF/video media
 - Mockup presets for dashboards, browsers, mobile apps, analytics, ecommerce, social ads, testimonials, pricing cards, and video dashboards
 - Editable text, stats, metric cards, CTA buttons, shapes, and chart blocks

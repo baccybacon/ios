@@ -42,6 +42,13 @@ private struct CanvasSurfaceView: View {
                     )
                 )
 
+            if viewModel.design.guideSettings.showsGrid {
+                GridGuideOverlay(
+                    canvasSize: viewModel.design.canvasSize,
+                    spacing: CGFloat(viewModel.design.guideSettings.gridSpacing)
+                )
+            }
+
             ForEach(viewModel.design.elements.sorted(by: { $0.zIndex < $1.zIndex })) { element in
                 DraggableElementView(
                     element: element,
@@ -72,6 +79,33 @@ private struct CanvasSurfaceView: View {
         .onTapGesture {
             viewModel.select(nil)
         }
+    }
+}
+
+private struct GridGuideOverlay: View {
+    let canvasSize: CGSize
+    let spacing: CGFloat
+
+    var body: some View {
+        Path { path in
+            let spacing = max(spacing, 1)
+
+            var x = spacing
+            while x < canvasSize.width {
+                path.move(to: CGPoint(x: x, y: 0))
+                path.addLine(to: CGPoint(x: x, y: canvasSize.height))
+                x += spacing
+            }
+
+            var y = spacing
+            while y < canvasSize.height {
+                path.move(to: CGPoint(x: 0, y: y))
+                path.addLine(to: CGPoint(x: canvasSize.width, y: y))
+                y += spacing
+            }
+        }
+        .stroke(Color(hex: "#111827").opacity(0.08), style: StrokeStyle(lineWidth: 2, dash: [10, 18]))
+        .allowsHitTesting(false)
     }
 }
 

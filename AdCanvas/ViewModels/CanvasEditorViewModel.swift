@@ -55,21 +55,45 @@ final class CanvasEditorViewModel: ObservableObject {
         selectedElementID = elementID
     }
 
+    func updateCanvasSize(width: Double, height: Double) {
+        let width = min(max(width, 240), 4_000)
+        let height = min(max(height, 240), 4_000)
+        design.canvasSize = CGSize(width: CGFloat(width), height: CGFloat(height))
+        clampElementsToCanvas()
+    }
+
+    func updateGridVisibility(_ isVisible: Bool) {
+        design.guideSettings.showsGrid = isVisible
+    }
+
+    func updateSnapToGrid(_ isEnabled: Bool) {
+        design.guideSettings.snapsToGrid = isEnabled
+    }
+
+    func updateGridSpacing(_ spacing: Double) {
+        design.guideSettings.gridSpacing = min(max(spacing, 20), 300)
+    }
+
     func moveElement(id: UUID, by translation: CGSize) {
         let canvasSize = design.canvasSize
+        let guideSettings = design.guideSettings
         updateElement(id: id) { element in
             let nextX = element.position.x + translation.width
             let nextY = element.position.y + translation.height
-            element.position = Self.clampedPosition(for: element, canvasSize: canvasSize, x: nextX, y: nextY)
+            let clampedPosition = Self.clampedPosition(for: element, canvasSize: canvasSize, x: nextX, y: nextY)
+            let snappedPosition = Self.snappedPosition(for: element, canvasSize: canvasSize, guideSettings: guideSettings, proposedPosition: clampedPosition)
+            element.position = Self.clampedPosition(for: element, canvasSize: canvasSize, x: snappedPosition.x, y: snappedPosition.y)
         }
     }
 
     func resizeElement(id: UUID, by translation: CGSize) {
         let canvasSize = design.canvasSize
+        let guideSettings = design.guideSettings
         updateElement(id: id) { element in
             let minimumSize = Self.minimumElementSize(for: element)
             element.size.width = min(max(element.size.width + translation.width, minimumSize.width), canvasSize.width)
             element.size.height = min(max(element.size.height + translation.height, minimumSize.height), canvasSize.height)
+            element.size = Self.snappedSize(for: element, canvasSize: canvasSize, guideSettings: guideSettings, minimumSize: minimumSize)
             element.position = Self.clampedPosition(for: element, canvasSize: canvasSize, x: element.position.x, y: element.position.y)
         }
     }
@@ -198,6 +222,10 @@ final class CanvasEditorViewModel: ObservableObject {
         selectedElementID = design.elements.last?.id
     }
 
+    func applyPresetCanvas(_ preset: CanvasSizePreset) {
+        updateCanvasSize(width: Double(preset.size.width), height: Double(preset.size.height))
+    }
+
     private func append(_ element: CanvasElement) {
         var element = element
         element.zIndex = nextZIndex()
@@ -263,6 +291,18 @@ final class CanvasEditorViewModel: ObservableObject {
         }
     }
 
+    private func clampElementsToCanvas() {
+        let canvasSize = design.canvasSize
+
+        for index in design.elements.indices {
+            let minimumSize = Self.minimumElementSize(for: design.elements[index])
+            design.elements[index].size.width = min(max(design.elements[index].size.width, minimumSize.width), canvasSize.width)
+            design.elements[index].size.height = min(max(design.elements[index].size.height, minimumSize.height), canvasSize.height)
+            let position = design.elements[index].position
+            design.elements[index].position = Self.clampedPosition(for: design.elements[index], canvasSize: canvasSize, x: position.x, y: position.y)
+        }
+    }
+
     private static func minimumElementSize(for element: CanvasElement) -> CGSize {
         switch element.kind {
         case .logoText:
@@ -297,8 +337,108 @@ final class CanvasEditorViewModel: ObservableObject {
         let maxY = canvasSize.height - element.size.height / 2
 
         return CGPoint(
-            x: min(max(x, minX), maxX),
-            y: min(max(y, minY), maxY)
+            x: min(max(x, minX), max(minX, maxX)),
+            y: min(max(y, minY), max(minY, maxY))
         )
     }
+
+    private static func snappedPosition(
+        for element: CanvasElement,
+        canvasSize: CGSize,
+        guideSettings: CanvasGuideSettings,
+        proposedPosition: CGPoint
+    ) -> CGPoint {
+        guard guideSettings.snapsToGrid else { return proposedPosition }
+
+        let spacing = max(CGFloat(guideSettings.gridSpacing), 1)
+        let threshold = max(CGFloat(guideSettings.snapThreshold), 0)
+
+        let horizontalAnchors = [
+            proposedPosition.x,
+            proposedPosition.x - element.size.width / 2,
+            proposedPosition.x + element.size.width / 2
+        ]
+        let verticalAnchors = [
+            proposedPosition.y,
+            proposedPosition.y - element.size.height / 2,
+            proposedPosition.y + element.size.height / 2
+        ]
+
+        let snappedX = snappedCenter(
+            center: proposedPosition.x,
+            anchors: horizontalAnchors,
+            spacing: spacing,
+            limit: canvasSize.width,
+            threshold: threshold
+        )
+        let snappedY = snappedCenter(
+            center: proposedPosition.y,
+            anchors: verticalAnchors,
+            spacing: spacing,
+            limit: canvasSize.height,
+            threshold: threshold
+        )
+
+        return CGPoint(x: snappedX, y: snappedY)
+    }
+
+    private static func snappedSize(
+        for element: CanvasElement,
+        canvasSize: CGSize,
+        guideSettings: CanvasGuideSettings,
+        minimumSize: CGSize
+    ) -> CGSize {
+        guard guideSettings.snapsToGrid else { return element.size }
+
+        let spacing = max(CGFloat(guideSettings.gridSpacing), 1)
+        let threshold = max(CGFloat(guideSettings.snapThreshold), 0)
+        var size = element.size
+
+        let rightEdge = element.position.x + element.size.width / 2
+        if let snappedRightEdge = snappedGuide(for: rightEdge, spacing: spacing, limit: canvasSize.width, threshold: threshold) {
+            size.width = min(max((snappedRightEdge - element.position.x) * 2, minimumSize.width), canvasSize.width)
+        }
+
+        let bottomEdge = element.position.y + element.size.height / 2
+        if let snappedBottomEdge = snappedGuide(for: bottomEdge, spacing: spacing, limit: canvasSize.height, threshold: threshold) {
+            size.height = min(max((snappedBottomEdge - element.position.y) * 2, minimumSize.height), canvasSize.height)
+        }
+
+        return size
+    }
+
+    private static func snappedCenter(center: CGFloat, anchors: [CGFloat], spacing: CGFloat, limit: CGFloat, threshold: CGFloat) -> CGFloat {
+        var bestAdjustment: CGFloat?
+
+        for anchor in anchors {
+            guard let guide = snappedGuide(for: anchor, spacing: spacing, limit: limit, threshold: threshold) else { continue }
+            let adjustment = guide - anchor
+
+            if bestAdjustment == nil || abs(adjustment) < abs(bestAdjustment ?? 0) {
+                bestAdjustment = adjustment
+            }
+        }
+
+        return center + (bestAdjustment ?? 0)
+    }
+
+    private static func snappedGuide(for value: CGFloat, spacing: CGFloat, limit: CGFloat, threshold: CGFloat) -> CGFloat? {
+        let nearestGuide = (value / spacing).rounded() * spacing
+        let clampedGuide = min(max(nearestGuide, 0), limit)
+        return abs(clampedGuide - value) <= threshold ? clampedGuide : nil
+    }
+}
+
+struct CanvasSizePreset: Identifiable {
+    let id: String
+    let name: String
+    let size: CGSize
+
+    static let all: [CanvasSizePreset] = [
+        CanvasSizePreset(id: "custom-square", name: "Square", size: CGSize(width: 1080, height: 1080)),
+        CanvasSizePreset(id: "portrait-ad", name: "Portrait Ad", size: CGSize(width: 1080, height: 1350)),
+        CanvasSizePreset(id: "story", name: "Story", size: CGSize(width: 1080, height: 1920)),
+        CanvasSizePreset(id: "landscape", name: "Landscape", size: CGSize(width: 1200, height: 628)),
+        CanvasSizePreset(id: "banner", name: "Banner", size: CGSize(width: 1600, height: 900))
+    ]
 }

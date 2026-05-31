@@ -4,12 +4,14 @@ struct AdDesign: Codable, Equatable {
     var name: String
     var canvasSize: CGSize
     var backgroundHex: String
+    var guideSettings: CanvasGuideSettings
     var elements: [CanvasElement]
 
     static let starter = AdDesign(
         name: "Dashboard Launch Ad",
         canvasSize: CGSize(width: 1080, height: 1350),
         backgroundHex: "#F6F7FB",
+        guideSettings: CanvasGuideSettings(),
         elements: [
             .logoText("NOVA", position: CGPoint(x: 540, y: 110)),
             .headline("Turn product data into decisions.", position: CGPoint(x: 540, y: 250)),
@@ -19,6 +21,25 @@ struct AdDesign: Codable, Equatable {
             .cta("Start free", position: CGPoint(x: 540, y: 1195))
         ]
     )
+}
+
+struct CanvasGuideSettings: Codable, Equatable {
+    var showsGrid: Bool
+    var snapsToGrid: Bool
+    var gridSpacing: Double
+    var snapThreshold: Double
+
+    init(
+        showsGrid: Bool = true,
+        snapsToGrid: Bool = true,
+        gridSpacing: Double = 90,
+        snapThreshold: Double = 14
+    ) {
+        self.showsGrid = showsGrid
+        self.snapsToGrid = snapsToGrid
+        self.gridSpacing = gridSpacing
+        self.snapThreshold = snapThreshold
+    }
 }
 
 struct CanvasElement: Identifiable, Codable, Equatable {
